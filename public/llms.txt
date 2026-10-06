@@ -1,0 +1,15 @@
+# Citewise
+
+> Citewise (working name) tracks whether AI engines such as ChatGPT, Perplexity, Gemini and Claude recommend and cite a brand, drafts pages that close the gaps, and answers the visitors those engines send with an AI support agent. Early build, October 2026.
+
+## Pages
+
+- [Home](/): what Citewise does and the build status
+- [Free AI audit](/audit): checks whether AI crawlers can read a site (engine ships in week 2)
+- [Build blueprint](/blueprint): architecture, data model, pipelines, pricing and the 8-week plan
+- [Botric system design](/system-design): an independent teardown of how botric.ai is built
+
+## Concepts
+
+- Visibility Score: 0-100, built from mention rate (40%), rank (20%), citations of your own domain (25%) and tone (15%)
+- Prompt outcomes: named and cited, named only, cited only, or not mentioned

@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Botric System Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Schibsted+Grotesk:wght@600;700;800&display=swap">
+<style>
+/* Layout: sticky contents rail + one ~900px reading column; every diagram and wide table scrolls inside its own frame on phones */
+:root {
+  --bg: #F4F6F9;
+  --surface: #FFFFFF;
+  --sunk: #ECEFF4;
+  --fg: #141820;
+  --muted: #586173;
+  --line: #D7DCE4;
+  --line-strong: #AEB6C3;
+  --accent: #1B56C8;
+  --accent-soft: #E2EBFB;
+  --on-accent: #FFFFFF;
+  --good: #1D7A50;
+  --good-soft: #DCF0E5;
+  --warn: #9A6210;
+  --warn-soft: #F6EAD2;
+  --bad: #B8362F;
+  --bad-soft: #F8E1DF;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1015; --surface: #151920; --sunk: #1B2029; --fg: #E3E7EE; --muted: #97A1B3;
+    --line: #262D38; --line-strong: #414B5A; --accent: #79A3F7; --accent-soft: #19253B; --on-accent: #0D1015;
+    --good: #52C08D; --good-soft: #10271C; --warn: #E2A94E; --warn-soft: #2A2112; --bad: #F2837A; --bad-soft: #321A1A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1015; --surface: #151920; --sunk: #1B2029; --fg: #E3E7EE; --muted: #97A1B3;
+  --line: #262D38; --line-strong: #414B5A; --accent: #79A3F7; --accent-soft: #19253B; --on-accent: #0D1015;
+  --good: #52C08D; --good-soft: #10271C; --warn: #E2A94E; --warn-soft: #2A2112; --bad: #F2837A; --bad-soft: #321A1A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15.5px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+code, pre { font-family: var(--font-mono); }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 24px; padding-block: 28px 96px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 52px; }
+main { min-width: 0; max-width: 920px; }
+
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; font-size: 13.5px; }
+.toc .brand { font-family: var(--font-display); font-weight: 800; font-size: 17px; letter-spacing: -.01em; margin: 0 0 2px; }
+.toc .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.toc a { display: flex; gap: 6px; padding: 4px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; }
+.toc a .n { font-family: var(--font-mono); font-size: 11.5px; color: var(--accent); min-width: 2.7em; padding-top: 1px; }
+.toc a:hover, .toc a.on { background: var(--sunk); color: var(--fg); }
+.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.hero { padding-block: 4px 8px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(38px, 5.6vw, 60px); line-height: 1.02; letter-spacing: -.03em; margin: 0 0 16px; text-wrap: balance; }
+.lede { font-size: 18px; line-height: 1.55; max-width: 64ch; margin: 0 0 20px; }
+.scan { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 0 0 16px; overflow: hidden; }
+.scan div { padding: 12px 14px; border-right: 1px solid var(--line); min-width: 0; }
+.scan div:last-child { border-right: 0; }
+.scan b { display: block; font-family: var(--font-display); font-size: 28px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.scan span { font-size: 12.5px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13.5px; color: var(--muted); margin: 0 0 6px; }
+.legend > span { display: inline-flex; gap: 8px; align-items: center; }
+.fine { font-size: 13px; color: var(--muted); margin: 0; }
+
+section { padding-top: 40px; margin-top: 40px; border-top: 1px solid var(--line); scroll-margin-top: 12px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(24px, 3vw, 30px); line-height: 1.15; letter-spacing: -.015em; margin: 0 0 12px; text-wrap: balance; }
+h2 .n { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); margin-right: 10px; vertical-align: 3px; letter-spacing: 0; }
+h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; margin: 30px 0 8px; text-wrap: balance; }
+p { margin: 0 0 14px; max-width: 72ch; }
+.intro { font-size: 16.5px; color: var(--muted); }
+main ul, main ol { padding-left: 1.3em; margin: 0 0 16px; max-width: 72ch; }
+main li { margin: 0 0 6px; }
+main li::marker { color: var(--muted); }
+code { font-size: .86em; background: var(--sunk); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--sunk); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; font-size: 12.8px; line-height: 1.6; margin: 0 0 18px; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+pre .c { color: var(--muted); }
+pre .k { color: var(--accent); }
+
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin: 0 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; background: var(--sunk); white-space: nowrap; }
+td.mono, .mono { font-family: var(--font-mono); font-size: 12.8px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.ph { font-family: var(--font-mono); font-size: 12.8px; color: var(--accent); }
+td.nw { white-space: nowrap; }
+
+figure { margin: 22px 0; }
+.fig { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px; }
+figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; max-width: 76ch; }
+svg.d { display: block; width: 100%; min-width: 820px; height: auto; font-family: var(--font-body); }
+svg.d .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; }
+svg.d .acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4; }
+svg.d .inf { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg.d .band { fill: var(--sunk); stroke: var(--line-strong); stroke-dasharray: 4 4; }
+svg.d .zone { fill: var(--sunk); stroke: var(--line-strong); stroke-width: 1.2; }
+svg.d .zone2 { fill: var(--bg); stroke: var(--line-strong); stroke-width: 1.2; }
+svg.d .chipbox { fill: var(--surface); stroke: var(--line); }
+svg.d .t { fill: var(--fg); font-size: 13px; font-weight: 600; }
+svg.d .s { fill: var(--muted); font-size: 11.5px; }
+svg.d .m { fill: var(--muted); font-family: var(--font-mono); font-size: 10.5px; }
+svg.d .mt { fill: var(--fg); font-family: var(--font-mono); font-size: 11px; }
+svg.d .l { fill: var(--muted); font-size: 11px; }
+svg.d .la { fill: var(--accent); font-size: 11px; font-weight: 600; }
+svg.d .cap { fill: var(--muted); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em; }
+svg.d .num { fill: var(--accent); font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; }
+svg.d .e { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+svg.d .ed { stroke: var(--muted); stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+svg.d .ea { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+svg.d .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+svg.d .mk { fill: var(--muted); }
+svg.d .mka { fill: var(--accent); }
+
+.chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; line-height: 1.5; padding: 1px 8px; border-radius: 999px; white-space: nowrap; background: var(--sunk); color: var(--muted); }
+.chip.seen { background: var(--good-soft); color: var(--good); }
+.chip.inf { background: var(--warn-soft); color: var(--warn); }
+.chip.acc { background: var(--accent-soft); color: var(--accent); }
+
+ol.steps { list-style: none; padding: 0; counter-reset: s; display: grid; gap: 10px; }
+ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; margin: 0; }
+ol.steps > li::before { content: counter(s); font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 50%; width: 26px; height: 26px; display: grid; place-items: center; margin-top: 1px; }
+ol.steps b { font-weight: 600; }
+
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+.card h4 { font-family: var(--font-display); font-size: 15.5px; margin: 0 0 6px; }
+.card p, .card ul { font-size: 14px; margin: 0; }
+.card ul { padding-left: 1.1em; }
+.card li { margin: 0 0 3px; }
+
+.issues { list-style: none; padding: 0 !important; display: grid; gap: 10px; max-width: none !important; }
+.issues li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0; display: grid; gap: 4px; }
+.issues b { font-family: var(--font-display); font-size: 15.5px; }
+.issues span { color: var(--muted); font-size: 14px; }
+
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+
+@media (max-width: 980px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 10px; padding-inline: 16px; padding-block: 16px 72px; }
+  .toc { position: static; max-height: none; overflow: visible; }
+  .toc .brand, .toc .sub { display: none; }
+  .toc ol { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 8px; }
+  .toc a { white-space: nowrap; background: var(--surface); border: 1px solid var(--line); }
+}
+@media (max-width: 720px) {
+  .scan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scan div:nth-child(2) { border-right: 0; }
+  .scan div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .cards { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+<style>body{margin:0}.sitebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--surface);font-size:13.5px;color:var(--muted)}.sitebar a{color:var(--accent);text-decoration:none}.sitebar a:first-child{font-family:var(--font-display);font-weight:800;color:var(--fg)}.sitebar b{color:var(--fg);font-weight:600}</style>
+</head>
+<body>
+<div class="sitebar"><a href="/">Citewise</a><span>/</span><a href="/blueprint">Build blueprint</a><span>·</span><a href="/system-design">Botric system design</a></div>
+
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <p class="brand">Botric</p>
+    <p class="sub">System design teardown</p>
+    <ol>
+      <li><a href="#map"><span class="n">[1]</span>System map</a></li>
+      <li><a href="#stack"><span class="n">[2]</span>Tech stack</a></li>
+      <li><a href="#site"><span class="n">[3]</span>Marketing site</a></li>
+      <li><a href="#app"><span class="n">[4]</span>Product app</a></li>
+      <li><a href="#model"><span class="n">[5]</span>Data model</a></li>
+      <li><a href="#geo"><span class="n">[6]</span>GEO run pipeline</a></li>
+      <li><a href="#audits"><span class="n">[7]</span>Audits</a></li>
+      <li><a href="#content"><span class="n">[8]</span>Content engine</a></li>
+      <li><a href="#support"><span class="n">[9]</span>Support agent</a></li>
+      <li><a href="#billing"><span class="n">[10]</span>Billing and credits</a></li>
+      <li><a href="#api"><span class="n">[11]</span>API surface</a></li>
+      <li><a href="#ops"><span class="n">[12]</span>Scale and security</a></li>
+      <li><a href="#gaps"><span class="n">[13]</span>What doesn't add up</a></li>
+      <li><a href="#plan"><span class="n">[14]</span>Build plan</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <p class="eyebrow">System design · reverse-engineered from public sources · 30 Sept 2026</p>
+      <h1>Botric system design</h1>
+      <p class="lede">How botric.ai is put together: the marketing site, the product app, the API, the chat widget and the jobs behind them. I scanned every URL in Botric's sitemaps, read the full product manual, and checked what each page loads and calls. Anything I could not see from outside is marked inferred, with the design I'd use.</p>
+      <div class="scan">
+        <div><b>73</b><span>pages scanned from 3 sitemaps</span></div>
+        <div><b>36</b><span>product manual pages read</span></div>
+        <div><b>5</b><span>subdomains mapped</span></div>
+        <div><b>15</b><span>API paths found in page code</span></div>
+      </div>
+      <div class="legend">
+        <span><span class="chip seen">Seen</span> in pages, network calls, page code or the manual</span>
+        <span><span class="chip inf">Inferred</span> not visible from outside; my design</span>
+      </div>
+      <p class="fine">Independent analysis of public pages. Not affiliated with Botric.</p>
+    </header>
+
+    <!-- 1 -->
+    <section id="map">
+      <h2><span class="n">[1]</span>System map</h2>
+      <p class="intro">Botric is five public front doors on one API. The marketing site and the app are separate Next.js projects; the chat widget is a separate React bundle that customers load on their own sites.</p>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 470" role="img" aria-label="System map. Browsers visit www.botric.ai, app.botric.ai and manual.botric.ai. Customer websites load widget.botric.ai. The marketing site, app and widget call api.botric.ai, a Node and Mongoose service on MongoDB. The API checks sessions with Clerk, bills with Stripe and gets chat replies from OpenAI and Mistral. Inferred workers take queued jobs, ask the AI engines the tracked prompts, sync Google Analytics and Search Console, and pull SEO metrics.">
+            <defs>
+              <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="a1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mka" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <text class="cap" x="10" y="14">PEOPLE</text>
+            <text class="cap" x="240" y="14">BOTRIC FRONT ENDS</text>
+            <text class="cap" x="520" y="14">BOTRIC BACK END</text>
+            <text class="cap" x="800" y="14">OUTSIDE SERVICES</text>
+
+            <rect class="box" x="10" y="100" width="160" height="70" rx="6"/>
+            <text class="t" x="90" y="130" text-anchor="middle">Browser</text>
+            <text class="s" x="90" y="150" text-anchor="middle">visitors, customers</text>
+            <rect class="box" x="10" y="330" width="160" height="70" rx="6"/>
+            <text class="t" x="90" y="360" text-anchor="middle">Customer's website</text>
+            <text class="s" x="90" y="380" text-anchor="middle">embeds the widget</text>
+
+            <rect class="box" x="240" y="30" width="200" height="66" rx="6"/>
+            <text class="t" x="340" y="56" text-anchor="middle">www.botric.ai</text>
+            <text class="s" x="340" y="76" text-anchor="middle">Next.js on Vercel, marketing</text>
+            <rect class="box" x="240" y="112" width="200" height="66" rx="6"/>
+            <text class="t" x="340" y="138" text-anchor="middle">app.botric.ai</text>
+            <text class="s" x="340" y="158" text-anchor="middle">Next.js + Clerk, product</text>
+            <rect class="box" x="240" y="194" width="200" height="56" rx="6"/>
+            <text class="t" x="340" y="218" text-anchor="middle">manual.botric.ai</text>
+            <text class="s" x="340" y="236" text-anchor="middle">Mintlify docs</text>
+            <rect class="box" x="240" y="330" width="200" height="70" rx="6"/>
+            <text class="t" x="340" y="358" text-anchor="middle">widget.botric.ai</text>
+            <text class="s" x="340" y="378" text-anchor="middle">React in Shadow DOM</text>
+
+            <rect class="acc" x="520" y="60" width="190" height="140" rx="6"/>
+            <text class="t" x="615" y="92" text-anchor="middle">api.botric.ai</text>
+            <text class="s" x="615" y="114" text-anchor="middle">Node.js + Mongoose</text>
+            <text class="s" x="615" y="132" text-anchor="middle">REST under /api/v1, SSE</text>
+            <text class="s" x="615" y="150" text-anchor="middle">data scoped by organization</text>
+            <rect class="inf" x="570" y="260" width="140" height="80" rx="6"/>
+            <text class="t" x="640" y="290" text-anchor="middle">Workers</text>
+            <text class="s" x="640" y="310" text-anchor="middle">runs, crawls,</text>
+            <text class="s" x="640" y="326" text-anchor="middle">blog generation</text>
+            <rect class="box" x="520" y="390" width="190" height="56" rx="6"/>
+            <text class="t" x="615" y="414" text-anchor="middle">MongoDB</text>
+            <text class="s" x="615" y="432" text-anchor="middle">ObjectId ids in API replies</text>
+
+            <rect class="box" x="800" y="20" width="190" height="46" rx="6"/>
+            <text class="t" x="895" y="40" text-anchor="middle">Clerk</text>
+            <text class="s" x="895" y="57" text-anchor="middle">sign-in, sessions</text>
+            <rect class="box" x="800" y="80" width="190" height="46" rx="6"/>
+            <text class="t" x="895" y="100" text-anchor="middle">Stripe</text>
+            <text class="s" x="895" y="117" text-anchor="middle">subscriptions, invoices</text>
+            <rect class="box" x="800" y="140" width="190" height="46" rx="6"/>
+            <text class="t" x="895" y="160" text-anchor="middle">LLM APIs</text>
+            <text class="s" x="895" y="177" text-anchor="middle">OpenAI, Mistral</text>
+            <rect class="acc" x="800" y="200" width="190" height="70" rx="6"/>
+            <text class="t" x="895" y="222" text-anchor="middle">AI engines</text>
+            <text class="s" x="895" y="242" text-anchor="middle">ChatGPT, Perplexity,</text>
+            <text class="s" x="895" y="258" text-anchor="middle">Gemini, Claude, Google</text>
+            <rect class="box" x="800" y="284" width="190" height="46" rx="6"/>
+            <text class="t" x="895" y="304" text-anchor="middle">Google APIs</text>
+            <text class="s" x="895" y="321" text-anchor="middle">GA4, Search Console</text>
+            <rect class="inf" x="800" y="344" width="190" height="46" rx="6"/>
+            <text class="t" x="895" y="364" text-anchor="middle">SEO data provider</text>
+            <text class="s" x="895" y="381" text-anchor="middle">backlinks, SERP</text>
+
+            <line class="e" x1="170" y1="118" x2="238" y2="68" marker-end="url(#a1)"/>
+            <line class="e" x1="170" y1="135" x2="238" y2="145" marker-end="url(#a1)"/>
+            <line class="e" x1="170" y1="152" x2="238" y2="218" marker-end="url(#a1)"/>
+            <text class="l" x="204" y="124" text-anchor="middle">visits</text>
+
+            <line class="e" x1="440" y1="63" x2="518" y2="95" marker-end="url(#a1)"/>
+            <text class="l" x="478" y="62" text-anchor="middle">free audit</text>
+            <line class="e" x1="440" y1="145" x2="518" y2="145" marker-end="url(#a1)"/>
+            <text class="l" x="479" y="138" text-anchor="middle">REST, SSE</text>
+
+            <line class="e" x1="710" y1="75" x2="798" y2="48" marker-end="url(#a1)"/>
+            <text class="l" x="748" y="55" text-anchor="middle">auth</text>
+            <line class="e" x1="710" y1="100" x2="798" y2="103" marker-end="url(#a1)"/>
+            <text class="l" x="754" y="95" text-anchor="middle">billing</text>
+            <line class="e" x1="710" y1="150" x2="798" y2="163" marker-end="url(#a1)"/>
+            <text class="l" x="754" y="146" text-anchor="middle">chat replies</text>
+
+            <line class="ed" x1="640" y1="200" x2="640" y2="258" marker-end="url(#a1)"/>
+            <text class="l" x="650" y="233">queue</text>
+            <line class="ea" x1="710" y1="275" x2="798" y2="240" marker-end="url(#a1a)"/>
+            <text class="la" x="754" y="283" text-anchor="middle">asks prompts</text>
+            <line class="ed" x1="710" y1="300" x2="798" y2="307" marker-end="url(#a1)"/>
+            <text class="l" x="754" y="324" text-anchor="middle">GA4, GSC sync</text>
+            <line class="ed" x1="710" y1="320" x2="798" y2="367" marker-end="url(#a1)"/>
+            <text class="l" x="754" y="364" text-anchor="middle">SEO metrics</text>
+
+            <line class="e" x1="545" y1="200" x2="545" y2="388" marker-start="url(#a1)" marker-end="url(#a1)"/>
+            <text class="l" x="537" y="300" text-anchor="end">reads, writes</text>
+            <line class="ed" x1="640" y1="340" x2="640" y2="388" marker-end="url(#a1)"/>
+
+            <line class="e" x1="170" y1="365" x2="238" y2="365" marker-end="url(#a1)"/>
+            <text class="l" x="204" y="357" text-anchor="middle">loads</text>
+            <line class="e" x1="440" y1="350" x2="530" y2="202" marker-end="url(#a1)"/>
+            <text class="l" x="466" y="290" text-anchor="end">chat, leads, tickets</text>
+          </svg>
+        </div>
+        <figcaption>Solid lines and boxes were seen from outside; dashed ones are inferred. The accent path is the core of the product: asking AI engines the tracked prompts every week. Runs keep going after the user closes the tab and report progress over SSE, so a queue and background workers must exist, even though they can't be seen.</figcaption>
+      </figure>
+    </section>
+
+    <!-- 2 -->
+    <section id="stack">
+      <h2><span class="n">[2]</span>Tech stack</h2>
+      <p class="intro">What each layer runs on, and the evidence for it.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Layer</th><th>What Botric uses</th><th>Evidence</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Marketing site</b></td><td>Next.js App Router, Turbopack build, Tailwind + shadcn/ui, Framer Motion, blog as MDX files in Git</td><td><code>turbopack-*.js</code> chunks, React Server Components payload, and Botric's own WordPress-to-Next.js migration post</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Hosting</b></td><td>Vercel</td><td><code>dpl_…</code> deployment ids on every asset</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Product app</b></td><td>Next.js (Turbopack) at app.botric.ai, routes <code>/onboarding</code>, <code>/dashboard</code>, <code>/w/:workspaceId/…</code></td><td>App bundle, manual's deep links</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Auth</b></td><td>Clerk on its own domain (clerk.botric.ai). Google sign-in or a 6-digit email code; no passwords</td><td>Network calls on the sign-in page, manual</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>API</b></td><td>Node.js with Mongoose on MongoDB. REST under <code>/api/v1</code>, replies wrapped as <code>{success, message, data}</code>, server-sent events for live progress</td><td><code>_id</code> and <code>__v</code> fields (Mongoose's version key) in API replies; <code>/api/v1/sse</code> in the app bundle</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Payments</b></td><td>Stripe: Checkout, proration previews, automatic retries, USD invoices as PDFs</td><td>Manual (Plans, Subscription, Invoices)</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>LLMs</b></td><td>OpenAI and Mistral AI</td><td>Privacy policy, section 6</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Answer capture</b></td><td>Prompts "queried natively rather than through a proxied API". The mechanism is most likely a headless-browser fleet or a paid answer-capture data provider</td><td>Claim on the brand-mentions tracker page; mechanism not visible</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td><b>Chat widget</b></td><td>~490 KB React bundle rendered in a Shadow DOM, streamed replies, voice input, exit-intent popups</td><td>Widget bundle: <code>attachShadow</code>, <code>ReadableStream</code>, <code>SpeechRecognition</code></td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Docs</b></td><td>Mintlify, with <code>llms.txt</code> and <code>llms-full.txt</code></td><td>Generator meta tag</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Static files</b></td><td>AWS S3 bucket <code>botric-pub</code></td><td>Network requests</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Growth tooling</b></td><td>Google Tag Manager + GA4, Microsoft Clarity, PostHog proxied through <code>/ingest</code>, a visitor-identification script on CloudFront, Leadsy, AffiliateRail (affiliate program), Calendly for demos, Cal.com for bookings from inside the widget</td><td>Scripts, cookies, links</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Jobs</b></td><td>A queue (BullMQ on Redis fits the Node stack) with workers for runs, crawls and generation</td><td>Runs have stages, survive closing the tab, refund on failure</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td><b>Vector search</b></td><td>Embeddings for knowledge sources. MongoDB Atlas Vector Search would keep it in the same database</td><td>Manual says sources are "chunked and embedded"; the store isn't visible</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td><b>SEO and media data</b></td><td>Domain Authority, backlinks, organic traffic and SERP data from a provider such as DataForSEO; a speech-to-text service for audio and video knowledge</td><td>Site Audit and Knowledge Source pages in the manual</td><td><span class="chip inf">Inferred</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="site">
+      <h2><span class="n">[3]</span>Marketing site</h2>
+      <p class="intro">www.botric.ai is 73 server-rendered pages across 13 page templates. Every page's H1 is in the raw HTML, so crawlers that don't run JavaScript see the full content. The site's job is to rank in Google and AI answers, then push visitors into the free audit.</p>
+
+      <h3>Page inventory</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Template</th><th>Routes</th><th class="num">Pages</th><th>Structured data (JSON-LD)</th><th>Job</th></tr></thead>
+          <tbody>
+            <tr><td><b>Home</b></td><td class="mono">/</td><td class="num">1</td><td>Organization, WebSite, SoftwareApplication, Product, FAQPage</td><td>Explain both engines, push the audit</td></tr>
+            <tr><td><b>Solutions</b></td><td class="mono">/ai-visibility, /content-agent, /ai-support, /enterprise</td><td class="num">4</td><td>SoftwareApplication or Service, HowTo, FAQPage, DefinedTerm</td><td>One page per product</td></tr>
+            <tr><td><b>Engine pages</b></td><td class="mono">/ai-optimization + /chatgpt, /claude, /gemini, /perplexity, /google-ai-overviews</td><td class="num">6</td><td>ItemList, FAQPage</td><td>Rank for "optimize for ChatGPT" and similar</td></tr>
+            <tr><td><b>Trackers</b></td><td class="mono">/track/ai-brand-mentions, /google-ai-overview, /chatgpt-, /gemini-, /claude-, /perplexity-citations</td><td class="num">6</td><td>SoftwareApplication, FAQPage, DefinedTerm</td><td>Rank for "ChatGPT tracker"; each ends in plan cards</td></tr>
+            <tr><td><b>Pricing</b></td><td class="mono">/pricing</td><td class="num">1</td><td>FAQPage</td><td>Plans, credits, comparison table</td></tr>
+            <tr><td><b>Service</b></td><td class="mono">/services/managed-geo</td><td class="num">1</td><td>Service, FAQPage</td><td>$849/month done-for-you program</td></tr>
+            <tr><td><b>Compare</b></td><td class="mono">/compare + botric-vs-profound, -searchable, -peec-ai, -athenahq, -otterly</td><td class="num">6</td><td>ItemList; Article + FAQPage</td><td>Win "X alternative" searches</td></tr>
+            <tr><td><b>Case studies</b></td><td class="mono">/case-studies + /luminary-ai, /grey-aesthetics</td><td class="num">3</td><td>CollectionPage; Article</td><td>Proof</td></tr>
+            <tr><td><b>GEO course</b></td><td class="mono">/learn/geo-foundations + module-1 … module-8</td><td class="num">9</td><td>Course; LearningResource</td><td>Top-of-funnel education</td></tr>
+            <tr><td><b>Blog</b></td><td class="mono">/blog + 30 posts</td><td class="num">31</td><td>Blog; BlogPosting + FAQPage</td><td>Listicles and how-tos, 2,300–4,900 words each</td></tr>
+            <tr><td><b>Company</b></td><td class="mono">/about, /contact, /faq</td><td class="num">3</td><td>AboutPage, FAQPage</td><td>The "trust stack" AI engines look for</td></tr>
+            <tr><td><b>Legal</b></td><td class="mono">/privacy, /terms</td><td class="num">2</td><td>–</td><td></td></tr>
+            <tr><td><b>Not in sitemap</b></td><td class="mono">/geo-optimizer, /careers</td><td class="num">2</td><td>–</td><td>Free audit page; jobs</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>What every page shares</h3>
+      <ul>
+        <li><b>Header:</b> an announcement bar, then AI Visibility, Content Agent, AI Support, Track ▾, Explore ▾, Pricing, Contact, Sign in and a Start 7-Day Free Trial button.</li>
+        <li><b>Body:</b> sections numbered 00–09 in a side rail, and a closing "Run Free Audit" block (a GET form to <code>/geo-optimizer?url=…</code>).</li>
+        <li><b>Footer:</b> five link groups (Product, Optimize for, Compare, Resources, Case studies).</li>
+        <li><b>Chat widget:</b> Botric's own support agent on every page (<code>data-bot-id="bt-live-…"</code>). They use their own product on their own site.</li>
+      </ul>
+
+      <h3>The GEO layer: how the site gets itself cited</h3>
+      <div class="cards">
+        <div class="card"><h4>Crawler access</h4><p><code>robots.txt</code> explicitly allows GPTBot, ChatGPT-User, OAI-SearchBot, ClaudeBot, Claude-Web, anthropic-ai, PerplexityBot, Google-Extended, Bingbot and Meta-ExternalAgent.</p></div>
+        <div class="card"><h4>Files written for LLMs</h4><p><code>/llms.txt</code> (with the score weights and a page map), <code>/llms-full.txt</code>, <code>/ai/faq.json</code>, <code>/ai/service.json</code> and <code>/.well-known/ai.txt</code>.</p></div>
+        <div class="card"><h4>Structured data everywhere</h4><p>JSON-LD on all 73 pages. FAQPage appears on 55 of them, because FAQ answers are what engines lift most easily.</p></div>
+        <div class="card"><h4>Content pipeline</h4><p>Posts are MDX files in Git with frontmatter, deployed on push. Botric says its non-technical content team publishes using Claude Code instead of a CMS.</p></div>
+      </div>
+
+      <h3>How a visitor becomes a customer</h3>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 300" role="img" aria-label="Funnel: blog and course pages, compare and tracker pages, and home and solution pages all lead to the Run Free Audit form. The form calls the audit API and shows a readiness report. From the report, visitors either book a demo on Calendly or start a 7-day trial through app sign-up, which leads into onboarding. Every page also carries the nav, the audit call to action, the chat widget and analytics scripts.">
+            <defs>
+              <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="box" x="10" y="20" width="200" height="58" rx="6"/>
+            <text class="t" x="110" y="44" text-anchor="middle">Blog and GEO course</text>
+            <text class="s" x="110" y="62" text-anchor="middle">30 posts, 8 modules</text>
+            <rect class="box" x="10" y="96" width="200" height="58" rx="6"/>
+            <text class="t" x="110" y="120" text-anchor="middle">Compare and trackers</text>
+            <text class="s" x="110" y="138" text-anchor="middle">5 vs pages, 11 engine pages</text>
+            <rect class="box" x="10" y="172" width="200" height="58" rx="6"/>
+            <text class="t" x="110" y="196" text-anchor="middle">Home and solutions</text>
+            <text class="s" x="110" y="214" text-anchor="middle">5 product pages, pricing</text>
+
+            <rect class="acc" x="290" y="80" width="180" height="74" rx="6"/>
+            <text class="t" x="380" y="106" text-anchor="middle">Run Free Audit</text>
+            <text class="m" x="380" y="124" text-anchor="middle">/geo-optimizer?url=</text>
+            <text class="s" x="380" y="141" text-anchor="middle">no signup, about 30 s</text>
+
+            <rect class="box" x="550" y="80" width="180" height="74" rx="6"/>
+            <text class="t" x="640" y="106" text-anchor="middle">Readiness report</text>
+            <text class="m" x="640" y="124" text-anchor="middle">…/geo-visibility/geo-audit</text>
+            <text class="s" x="640" y="141" text-anchor="middle">score and top fixes</text>
+
+            <rect class="box" x="800" y="20" width="190" height="58" rx="6"/>
+            <text class="t" x="895" y="44" text-anchor="middle">Book a demo</text>
+            <text class="s" x="895" y="62" text-anchor="middle">Calendly, 30 min</text>
+            <rect class="box" x="800" y="110" width="190" height="58" rx="6"/>
+            <text class="t" x="895" y="134" text-anchor="middle">Start 7-day trial</text>
+            <text class="s" x="895" y="152" text-anchor="middle">app sign-up through Clerk</text>
+            <rect class="box" x="800" y="200" width="190" height="58" rx="6"/>
+            <text class="t" x="895" y="224" text-anchor="middle">Onboarding</text>
+            <text class="s" x="895" y="242" text-anchor="middle">4 steps, plan, first runs</text>
+
+            <line class="e" x1="210" y1="49" x2="288" y2="108" marker-end="url(#a2)"/>
+            <line class="e" x1="210" y1="125" x2="288" y2="117" marker-end="url(#a2)"/>
+            <line class="e" x1="210" y1="201" x2="288" y2="127" marker-end="url(#a2)"/>
+            <text class="l" x="249" y="101" text-anchor="middle">audit CTA</text>
+            <line class="e" x1="470" y1="117" x2="548" y2="117" marker-end="url(#a2)"/>
+            <text class="l" x="509" y="110" text-anchor="middle">API call</text>
+            <line class="e" x1="730" y1="105" x2="798" y2="55" marker-end="url(#a2)"/>
+            <text class="l" x="760" y="70" text-anchor="end">book call</text>
+            <line class="e" x1="730" y1="125" x2="798" y2="139" marker-end="url(#a2)"/>
+            <text class="l" x="764" y="150" text-anchor="middle">sign up</text>
+            <line class="e" x1="895" y1="168" x2="895" y2="198" marker-end="url(#a2)"/>
+
+            <rect class="band" x="10" y="250" width="760" height="42" rx="6"/>
+            <text class="cap" x="22" y="267">ON EVERY PAGE</text>
+            <text class="s" x="22" y="284">nav with Sign in and Start trial · audit CTA block · Botric chat widget · GA4, Clarity, PostHog, visitor-ID scripts</text>
+          </svg>
+        </div>
+        <figcaption>The free audit is the hinge: every template ends in it, it needs no signup, and the report hands off to either sales (Calendly) or self-serve (app sign-up). The contact form posts to <code>/api/v1/support-forms</code> with name, email, phone, company, topic, website and message, all required except topic.</figcaption>
+      </figure>
+    </section>
+
+    <!-- 4 -->
+    <section id="app">
+      <h2><span class="n">[4]</span>Product app</h2>
+      <p class="intro">app.botric.ai has two navigation modes: a workspace sidebar for one brand, and a settings sidebar for the account. The layout below comes from Botric's manual.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Sidebar group</th><th>Pages</th></tr></thead>
+          <tbody>
+            <tr><td><b>Workspace</b></td><td>Get Started (6-task checklist) · Dashboard · Brand Profile · Knowledge Source · Reports · Analytics · Integrations</td></tr>
+            <tr><td><b>Search</b></td><td>Site Audit · GEO Audit</td></tr>
+            <tr><td><b>Discoverability</b></td><td>AI Visibility (GEO) · Prompt Research · Citations · Competitors</td></tr>
+            <tr><td><b>Content</b></td><td>Blog Agent · Page Agent</td></tr>
+            <tr><td><b>Customer support</b></td><td>Chat Agent · Conversations</td></tr>
+            <tr><td><b>Settings</b></td><td>Profile · Workspaces · Manage Admins · Plans · Subscription · Credits · Invoices · Contact Support</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The top bar holds breadcrumbs, a credit pill (amber when low, red when nearly out), a subscription status chip, "What's new", and links to the docs, a demo and support. <code>Ctrl/⌘ + K</code> opens a command palette. Sidebar badges count audit issues (red), content gaps (red) and new conversations (blue); an Upgrade pill marks pages the plan doesn't include.</p>
+<pre><code><span class="c"># Every tab's state lives in the URL, so views can be shared</span>
+/w/&lt;workspaceId&gt;/site-audit/&lt;siteId&gt;?tab=technical-audit
+/w/&lt;workspaceId&gt;/geo-agent/&lt;siteId&gt;/competitors?tab=deep-analysis
+/w/&lt;workspaceId&gt;/engagements/conversations?tab=tickets
+/w/&lt;workspaceId&gt;/reports?tab=geo&amp;site=&lt;siteId&gt;
+/public/embed/&lt;chatbotId&gt;      <span class="c"># iframe version of the chat agent</span></code></pre>
+
+      <h3>Onboarding</h3>
+      <p>Nothing is saved until the last step, so a user who leaves at the plan screen leaves no half-built workspace behind.</p>
+      <ol class="steps">
+        <li><div><b>Website:</b> workspace name, URL and one target country. In the background Botric fetches the favicon, pulls a colour palette from it, and drafts a business profile.</div></li>
+        <li><div><b>Brand:</b> review the drafted brand name, summary, up to 5 core topics (ordered; the first is primary) and brand colours.</div></li>
+        <li><div><b>Competitors:</b> Botric searches each topic and pre-selects up to 5, spread across topics. The user can add, remove or retry.</div></li>
+        <li><div><b>Pages:</b> Botric crawls internal links; the user picks the pages the first Site Audit covers.</div></li>
+        <li><div><b>Plan:</b> new accounts must pick Free or start a 7-day paid trial here. Existing subscribers skip this step.</div></li>
+        <li><div><b>Creation:</b> the workspace and site are saved, the tracked prompt set is generated from the topics, and Site Audit and AI Visibility start in parallel. The user lands on Get Started.</div></li>
+      </ol>
+
+      <h3>Roles</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Role</th><th>Can</th></tr></thead>
+          <tbody>
+            <tr><td><b>Owner</b></td><td>Everything, including billing and deleting workspaces</td></tr>
+            <tr><td><b>Admin</b></td><td>Manage workspaces and the team; rename and delete workspaces</td></tr>
+            <tr><td><b>Member</b></td><td>Use the whole product; rename and delete controls are hidden</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Every member sees every workspace in the organization. Pending invitations count against the plan's seat limit.</p>
+    </section>
+
+    <!-- 5 -->
+    <section id="model">
+      <h2><span class="n">[5]</span>Data model</h2>
+      <p class="intro">Billing lives on the organization; everything else lives inside a workspace. The manual's own object tree gives the containment below. Collection and field names are my design, except the FAQ record, whose real shape the API returns.</p>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 420" role="img" aria-label="Containment: an organization holds the plan, credit ledger, members and invoices, and contains workspaces. A workspace holds a site, a content area and a customer support area. The site has a profile, target market, competitors and prompts, and produces GEO runs, Site Audit runs and GEO Audit reports. GEO runs and Site Audits feed the Content Brain, which produces topics and blogs; Site Audits also feed page fixes. Knowledge sources train chat agents, which produce conversations.">
+            <defs>
+              <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="zone" x="6" y="6" width="988" height="408" rx="10"/>
+            <text class="cap" x="24" y="28">ORGANIZATION · EVERYTHING IS BILLED HERE</text>
+            <rect class="chipbox" x="24" y="38" width="150" height="22" rx="11"/>
+            <text class="mt" x="99" y="53" text-anchor="middle">plan + subscription</text>
+            <rect class="chipbox" x="184" y="38" width="110" height="22" rx="11"/>
+            <text class="mt" x="239" y="53" text-anchor="middle">credit ledger</text>
+            <rect class="chipbox" x="304" y="38" width="220" height="22" rx="11"/>
+            <text class="mt" x="414" y="53" text-anchor="middle">members: owner, admin, member</text>
+            <rect class="chipbox" x="534" y="38" width="120" height="22" rx="11"/>
+            <text class="mt" x="594" y="53" text-anchor="middle">invoices (USD)</text>
+
+            <rect class="zone2" x="24" y="72" width="952" height="328" rx="8"/>
+            <text class="cap" x="40" y="94">WORKSPACE · ONE BRAND, ONE WEBSITE</text>
+            <rect class="chipbox" x="640" y="82" width="80" height="22" rx="11"/>
+            <text class="mt" x="680" y="97" text-anchor="middle">reports</text>
+            <rect class="chipbox" x="728" y="82" width="96" height="22" rx="11"/>
+            <text class="mt" x="776" y="97" text-anchor="middle">dashboard</text>
+            <rect class="chipbox" x="832" y="82" width="128" height="22" rx="11"/>
+            <text class="mt" x="896" y="97" text-anchor="middle">GA4 + GSC links</text>
+
+            <rect class="box" x="40" y="116" width="300" height="270" rx="6"/>
+            <text class="t" x="56" y="138">Site</text>
+            <text class="s" x="56" y="160">profile: brand, summary, 5 weighted topics</text>
+            <text class="s" x="56" y="178">target market: one country</text>
+            <text class="s" x="56" y="196">competitors: up to 5 benchmarked</text>
+            <text class="s" x="56" y="214">prompts: tracked + add-on slots</text>
+            <rect class="acc" x="56" y="230" width="268" height="30" rx="5"/>
+            <text class="t" x="190" y="250" text-anchor="middle">GEO runs → prompt results</text>
+            <rect class="box" x="56" y="268" width="268" height="30" rx="5"/>
+            <text class="t" x="190" y="288" text-anchor="middle">Site Audit runs → page grades</text>
+            <rect class="box" x="56" y="306" width="268" height="30" rx="5"/>
+            <text class="t" x="190" y="326" text-anchor="middle">GEO Audit → citability report</text>
+            <text class="s" x="56" y="366">each run saves a report; none overwrite</text>
+
+            <rect class="box" x="360" y="116" width="290" height="270" rx="6"/>
+            <text class="t" x="376" y="138">Content</text>
+            <rect class="box" x="376" y="152" width="258" height="44" rx="5"/>
+            <text class="t" x="505" y="171" text-anchor="middle">Content Brain</text>
+            <text class="s" x="505" y="187" text-anchor="middle">Site Audit + GEO + SERP + GSC</text>
+            <rect class="box" x="376" y="222" width="258" height="44" rx="5"/>
+            <text class="t" x="505" y="241" text-anchor="middle">Topics</text>
+            <text class="s" x="505" y="257" text-anchor="middle">discovered, scored for citability</text>
+            <rect class="box" x="376" y="292" width="258" height="44" rx="5"/>
+            <text class="t" x="505" y="311" text-anchor="middle">Blogs</text>
+            <text class="s" x="505" y="327" text-anchor="middle">4 audit scores, live URL</text>
+            <rect class="box" x="376" y="346" width="258" height="30" rx="5"/>
+            <text class="t" x="505" y="366" text-anchor="middle">Page fixes (Page Agent)</text>
+            <line class="e" x1="505" y1="196" x2="505" y2="220" marker-end="url(#a3)"/>
+            <line class="e" x1="505" y1="266" x2="505" y2="290" marker-end="url(#a3)"/>
+
+            <rect class="box" x="670" y="116" width="290" height="270" rx="6"/>
+            <text class="t" x="686" y="138">Customer support</text>
+            <rect class="box" x="686" y="152" width="258" height="44" rx="5"/>
+            <text class="t" x="815" y="171" text-anchor="middle">Knowledge sources</text>
+            <text class="s" x="815" y="187" text-anchor="middle">web, file, FAQ, text, audio, video</text>
+            <rect class="box" x="686" y="222" width="258" height="44" rx="5"/>
+            <text class="t" x="815" y="241" text-anchor="middle">Chat agents</text>
+            <text class="s" x="815" y="257" text-anchor="middle">bt-live-… key, theme, channels</text>
+            <rect class="box" x="686" y="292" width="258" height="44" rx="5"/>
+            <text class="t" x="815" y="311" text-anchor="middle">Conversations</text>
+            <text class="s" x="815" y="327" text-anchor="middle">logs, tickets, leads, calls</text>
+            <text class="s" x="815" y="364" text-anchor="middle">FAQs are generated after training</text>
+            <line class="e" x1="815" y1="196" x2="815" y2="220" marker-end="url(#a3)"/>
+            <text class="l" x="825" y="212">trains</text>
+            <line class="e" x1="815" y1="266" x2="815" y2="290" marker-end="url(#a3)"/>
+            <text class="l" x="825" y="282">produce</text>
+
+            <line class="ea" x1="324" y1="245" x2="374" y2="180" marker-end="url(#a3)"/>
+            <line class="e" x1="324" y1="283" x2="374" y2="190" marker-end="url(#a3)"/>
+            <line class="e" x1="324" y1="288" x2="374" y2="361" marker-end="url(#a3)"/>
+          </svg>
+        </div>
+        <figcaption>GEO runs and Site Audits are the inputs to everything in Content. Page Agent needs only a Site Audit; the Blog Agent needs a built Content Brain, which needs a completed Site Audit. Deleting a workspace deletes all of it, with no undo.</figcaption>
+      </figure>
+
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Collection</th><th>Key fields</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="ph">organizations</td><td class="mono">name, stripeCustomerId, plan, trialUsed</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">members</td><td class="mono">orgId, clerkUserId, role, status: pending|active</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">subscriptions</td><td class="mono">orgId, plan, interval, status, periodStart, periodEnd, cancelAt</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">creditLedger</td><td class="mono">orgId, pool: plan|addon, type: usage|refund|purchase|grant|reset|expiry, feature, amount, balanceBefore, balanceAfter, runId</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">workspaces</td><td class="mono">orgId, name, icon</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">sites</td><td class="mono">workspaceId, domain, market, profile {brandName, summary, topics[{name, weight}], colors}, competitors[{name, domain, manual}]</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">prompts</td><td class="mono">siteId, text, topic, intent, kind: tracked|addon, locked</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">runs</td><td class="mono">siteId, agent: siteAudit|geo|geoAudit|research, status, stage, creditsCharged, error</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">promptResults</td><td class="mono">runId, promptId, platform, answer, sources[], brandsNamed[], outcome, sentiment</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">gaps, recommendations</td><td class="mono">runId, promptIds[], type, impact, competitor, action, status: open|fixed</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">knowledgeSources</td><td class="mono">workspaceId, type, uri|fileKey, trainStatus, chunks[] with embeddings</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">chatbots</td><td class="mono">workspaceId, key "bt-live-…", appearance, mode, channels, allowedDomains, sourceIds[]</td><td><span class="chip seen">Key format seen</span></td></tr>
+            <tr><td class="ph">faqs</td><td class="mono">agentId, organizationId, question, answer, isActive, generatedBy, confidenceScore, sourceContext</td><td><span class="chip seen">Seen</span></td></tr>
+            <tr><td class="ph">sessions, messages</td><td class="mono">chatbotId, visitor, category: support|knowledgeGap|unclear; role, content, confidence</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">tickets, leads, bookings</td><td class="mono">sessionId, fields, status, priority, source: chatbot|website</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">brains, topics, blogs, pageFixes</td><td class="mono">workspaceId, signals, context; score, status; scores {citability, readability, originality, humanization}, liveUrl</td><td><span class="chip inf">Inferred</span></td></tr>
+            <tr><td class="ph">integrations</td><td class="mono">workspaceId, provider: ga4|gsc, tokens, propertyId, lastSync</td><td><span class="chip inf">Inferred</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="geo">
+      <h2><span class="n">[6]</span>GEO run pipeline</h2>
+      <p class="intro">AI Visibility is the core report. A run passes through ten stages, which the app names in its progress banner. The order below is the manual's.</p>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 290" role="img" aria-label="GEO run pipeline: a pre-flight credit reservation, then ten stages in order: intent generation, clustering, competitor lookup, querying AI engines, extracting competitors, content coverage, citation mapping, sentiment, share of voice, and compiling the report, which produces the GEO score and four outcomes per prompt.">
+            <defs>
+              <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="box" x="10" y="40" width="140" height="80" rx="6"/>
+            <text class="t" x="80" y="70" text-anchor="middle">Reserve credits</text>
+            <text class="s" x="80" y="88" text-anchor="middle">cap + add-on prompts</text>
+            <text class="s" x="80" y="104" text-anchor="middle">blocked if short</text>
+
+            <rect class="box" x="170" y="40" width="145" height="80" rx="6"/>
+            <text class="num" x="180" y="58">01</text>
+            <text class="t" x="242" y="84" text-anchor="middle">Intent generation</text>
+            <text class="s" x="242" y="102" text-anchor="middle">questions buyers ask</text>
+            <rect class="box" x="335" y="40" width="145" height="80" rx="6"/>
+            <text class="num" x="345" y="58">02</text>
+            <text class="t" x="407" y="84" text-anchor="middle">Clustering</text>
+            <text class="s" x="407" y="102" text-anchor="middle">group into topics</text>
+            <rect class="box" x="500" y="40" width="145" height="80" rx="6"/>
+            <text class="num" x="510" y="58">03</text>
+            <text class="t" x="572" y="84" text-anchor="middle">Competitor lookup</text>
+            <text class="s" x="572" y="102" text-anchor="middle">who else sells this</text>
+            <rect class="acc" x="665" y="40" width="145" height="80" rx="6"/>
+            <text class="num" x="675" y="58">04</text>
+            <text class="t" x="737" y="84" text-anchor="middle">Query AI engines</text>
+            <text class="s" x="737" y="102" text-anchor="middle">prompt × platform</text>
+            <rect class="box" x="830" y="40" width="145" height="80" rx="6"/>
+            <text class="num" x="840" y="58">05</text>
+            <text class="t" x="902" y="84" text-anchor="middle">Extract competitors</text>
+            <text class="s" x="902" y="102" text-anchor="middle">names in each answer</text>
+
+            <rect class="box" x="830" y="170" width="145" height="80" rx="6"/>
+            <text class="num" x="840" y="188">06</text>
+            <text class="t" x="902" y="214" text-anchor="middle">Content coverage</text>
+            <text class="s" x="902" y="232" text-anchor="middle">index and map your pages</text>
+            <rect class="box" x="665" y="170" width="145" height="80" rx="6"/>
+            <text class="num" x="675" y="188">07</text>
+            <text class="t" x="737" y="214" text-anchor="middle">Citation mapping</text>
+            <text class="s" x="737" y="232" text-anchor="middle">mention → source domain</text>
+            <rect class="box" x="500" y="170" width="145" height="80" rx="6"/>
+            <text class="num" x="510" y="188">08</text>
+            <text class="t" x="572" y="214" text-anchor="middle">Sentiment</text>
+            <text class="s" x="572" y="232" text-anchor="middle">tone of each mention</text>
+            <rect class="box" x="335" y="170" width="145" height="80" rx="6"/>
+            <text class="num" x="345" y="188">09</text>
+            <text class="t" x="407" y="214" text-anchor="middle">Share of voice</text>
+            <text class="s" x="407" y="232" text-anchor="middle">benchmark vs rivals</text>
+            <rect class="box" x="170" y="170" width="145" height="80" rx="6"/>
+            <text class="num" x="180" y="188">10</text>
+            <text class="t" x="242" y="214" text-anchor="middle">Compile report</text>
+            <text class="s" x="242" y="232" text-anchor="middle">score, gaps, actions</text>
+
+            <rect class="acc" x="10" y="170" width="140" height="80" rx="6"/>
+            <text class="t" x="80" y="200" text-anchor="middle">Report</text>
+            <text class="s" x="80" y="218" text-anchor="middle">GEO score 0–100</text>
+            <text class="s" x="80" y="234" text-anchor="middle">4 outcomes per prompt</text>
+
+            <line class="e" x1="150" y1="80" x2="168" y2="80" marker-end="url(#a4)"/>
+            <line class="e" x1="315" y1="80" x2="333" y2="80" marker-end="url(#a4)"/>
+            <line class="e" x1="480" y1="80" x2="498" y2="80" marker-end="url(#a4)"/>
+            <line class="e" x1="645" y1="80" x2="663" y2="80" marker-end="url(#a4)"/>
+            <line class="e" x1="810" y1="80" x2="828" y2="80" marker-end="url(#a4)"/>
+            <line class="e" x1="902" y1="120" x2="902" y2="168" marker-end="url(#a4)"/>
+            <line class="e" x1="830" y1="210" x2="812" y2="210" marker-end="url(#a4)"/>
+            <line class="e" x1="665" y1="210" x2="647" y2="210" marker-end="url(#a4)"/>
+            <line class="e" x1="500" y1="210" x2="482" y2="210" marker-end="url(#a4)"/>
+            <line class="e" x1="335" y1="210" x2="317" y2="210" marker-end="url(#a4)"/>
+            <line class="e" x1="170" y1="210" x2="152" y2="210" marker-end="url(#a4)"/>
+            <text class="l" x="10" y="278">If any stage fails, the run is marked failed, its credits are refunded, and Retry is offered. Progress streams to the app over SSE.</text>
+          </svg>
+        </div>
+        <figcaption>Stage 4 is the expensive one: every prompt on every engine on the plan. Stages 5–9 turn free-text answers into structured data, which is where an LLM reads each answer. The run bills the plan's full tracked-prompt cap plus add-ons, even when fewer prompts are visible, because Botric refills the tracked set to the cap every run.</figcaption>
+      </figure>
+
+      <h3>Every prompt ends in one of four outcomes</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Outcome</th><th>Meaning</th><th>What it becomes</th></tr></thead>
+          <tbody>
+            <tr><td><span class="chip seen">Named and cited</span></td><td>Brand in the answer, and a brand URL among the sources</td><td>No gap</td></tr>
+            <tr><td><span class="chip acc">Named, not cited</span></td><td>The engine knows the brand but quoted someone else</td><td>Content gap: publish a page worth citing</td></tr>
+            <tr><td><span class="chip inf">Cited, not named</span></td><td>A brand page is a source, but the brand isn't named</td><td>Positioning gap: state the brand and claim on that page</td></tr>
+            <tr><td><span class="chip">Not mentioned</span></td><td>No name, no URL</td><td>Invisible for this prompt</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Score, engines and prompts</h3>
+      <div class="cards">
+        <div class="card"><h4>GEO score</h4><p>Mention rate 40% + citation rate 25% + position 20% + sentiment 15%, computed per platform and overall. Bands: 90+ excellent, 80–89 good, 70–79 fair, below 70 needs improvement.</p></div>
+        <div class="card"><h4>Engines</h4><p>Marketing covers ChatGPT, Perplexity, Gemini, Claude, Google AI Overviews and AI Mode. The manual also lists Copilot, Grok, DeepSeek, Meta AI, Mistral and Poe.</p></div>
+        <div class="card"><h4>Prompt intents</h4><p>Informational, Commercial, Comparison, Buyer intent, Branded, Locational, Adjacent, Direct and General. Marketing groups them as direct, comparison, category and informational.</p></div>
+        <div class="card"><h4>Prompt Research</h4><p>A test bench: up to 10 prompts a run at 20 credits each, answered on every platform. The prompts worth keeping get promoted into add-on slots.</p></div>
+      </div>
+      <p>The report has five tabs: Overview (brand perception, score history, competitor heatmap, top cited sources), Prompts, Content Gaps (ranked Critical to Low), Recommendations (content gaps, entity and schema work, "publish the fact", pitch a story, claim a listing) and Actions (high priority, long-term and no action, each markable as Fixed). Citations sorts sources into owned, competitor-owned, editorial, community, docs, publisher and other, with YouTube and Reddit broken out. Competitors adds a benchmark, a list of every brand named, and a gap matrix of prompts against rivals.</p>
+    </section>
+
+    <!-- 7 -->
+    <section id="audits">
+      <h2><span class="n">[7]</span>Audits</h2>
+      <p class="intro">Three audits ask three different questions. The free public one is the lead magnet; the other two run inside a workspace and cost credits.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th></th><th>Site Audit</th><th>GEO Audit</th><th>Free audit</th></tr></thead>
+          <tbody>
+            <tr><td><b>Question</b></td><td>Is the site technically sound?</td><td>Would an AI engine confidently cite it?</td><td>How visible and citable is this domain?</td></tr>
+            <tr><td><b>Starts</b></td><td>End of onboarding; "Resync audit"</td><td>First visit to the page; "Re-run"</td><td><code>/geo-optimizer?url=</code>, no signup</td></tr>
+            <tr><td><b>Output</b></td><td>Site Health 0–100; A–D page grades; issues by severity with impact, why and how to fix; priority fixes; AI crawlability (crawlable, sitemap, resources, crawl delay); Domain Authority, backlinks, referring domains, organic traffic</td><td>Citability score and band; technical readiness; AI crawler access; platform readiness; trust stack (About, contact, LinkedIn); knowledge-graph presence (Wikipedia, Wikidata, Crunchbase); intent-coverage radar; freshness; risk flags (hallucination bait, keyword stuffing, prompt-injection surface); top gains</td><td>Readiness score in about 30 seconds, then a demo or trial prompt</td></tr>
+            <tr><td><b>Endpoint</b></td><td><span class="chip inf">Inferred</span></td><td><span class="chip inf">Inferred</span></td><td class="mono">api.botric.ai/api/v1/geo-visibility/geo-audit <span class="chip seen">Seen</span></td></tr>
+            <tr><td><b>Feeds</b></td><td>Page Agent, Content Brain</td><td>Blog Agent topics</td><td>Sales funnel</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Both in-app audits can be downloaded and compared run against run. Deleting a site deletes its audit and GEO history.</p>
+    </section>
+
+    <!-- 8 -->
+    <section id="content">
+      <h2><span class="n">[8]</span>Content engine</h2>
+      <p class="intro">The Content Agent is two tools on one context layer. The Blog Agent writes new pages from gaps; the Page Agent rewrites pages the audit already graded.</p>
+      <ol class="steps">
+        <li><div><b>Build the Content Brain</b> from up to four signals: Site Audit (required), AI Visibility, SERP intelligence (run on demand) and Search Console (optional). The Brain is organised into three views: My Business, My Market and My Progress. The user sets the author name and tone. A build takes a few minutes and shows live progress.</div></li>
+        <li><div><b>Discover topics</b> (20 credits a run). Each idea is scored for citation likelihood and shows where it came from: a gap, a competitor advantage or a Search Console query. Users can add their own topics.</div></li>
+        <li><div><b>Generate a blog</b> (200 credits). Status moves Generating → Ready; a failure shows "Failed · refunded".</div></li>
+        <li><div><b>Score the draft</b> on citability, readability, originality and humanization. Export as Markdown, HTML, Word or PDF.</div></li>
+        <li><div><b>Publish and record the URL</b>, which marks it Completed. Then check AI crawlability in Site Audit and re-run AI Visibility to see whether the prompt moved to "named and cited".</div></li>
+      </ol>
+      <p><b>Page Agent</b> lists every audited page by score and issue count. For one page it generates concrete fixes: rewritten titles and meta descriptions, heading corrections, missing sections, claims to state outright, and structured-data and entity additions. It needs only a completed Site Audit, not a Brain.</p>
+      <p>Marketing describes more: a twelve-dimension Google and LLM "rankability" score and a 15-point GEO checklist (named author, JSON-LD, Speakable schema, 6-question FAQ, comparison table, external citations, answer-first openers and more). The manual documents only the four scores above.</p>
+    </section>
+
+    <!-- 9 -->
+    <section id="support">
+      <h2><span class="n">[9]</span>Support agent</h2>
+      <p class="intro">Engine 02 is a chat agent trained on the workspace's knowledge sources and embedded with one script tag. The request paths below come from the widget's own code.</p>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 430" role="img" aria-label="Chat widget sequence: the customer's page loads the widget with a bot id. The widget fetches the chatbot config, the opening message and suggested FAQs from the API, creates a session, then posts each question to the chat endpoint. The API retrieves knowledge chunks and asks an LLM, then streams the reply back to the widget. Leads, tickets and bookings are posted to their own endpoints and reach the customer's team.">
+            <defs>
+              <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+              <marker id="a5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mka" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="box" x="15" y="16" width="150" height="36" rx="6"/>
+            <text class="t" x="90" y="39" text-anchor="middle">Customer's page</text>
+            <rect class="box" x="225" y="16" width="150" height="36" rx="6"/>
+            <text class="t" x="300" y="39" text-anchor="middle">Widget</text>
+            <rect class="acc" x="455" y="16" width="150" height="36" rx="6"/>
+            <text class="t" x="530" y="39" text-anchor="middle">api.botric.ai</text>
+            <rect class="inf" x="685" y="16" width="150" height="36" rx="6"/>
+            <text class="t" x="760" y="39" text-anchor="middle">Vectors + LLM</text>
+            <rect class="box" x="850" y="16" width="140" height="36" rx="6"/>
+            <text class="t" x="920" y="39" text-anchor="middle">Customer's team</text>
+            <line class="life" x1="90" y1="52" x2="90" y2="415"/>
+            <line class="life" x1="300" y1="52" x2="300" y2="415"/>
+            <line class="life" x1="530" y1="52" x2="530" y2="415"/>
+            <line class="life" x1="760" y1="52" x2="760" y2="415"/>
+            <line class="life" x1="920" y1="52" x2="920" y2="415"/>
+
+            <line class="e" x1="90" y1="80" x2="298" y2="80" marker-end="url(#a5)"/>
+            <text class="m" x="195" y="74" text-anchor="middle">script tag + data-bot-id</text>
+            <line class="e" x1="300" y1="112" x2="528" y2="112" marker-end="url(#a5)"/>
+            <text class="mt" x="415" y="106" text-anchor="middle">/chatbot/:botId</text>
+            <line class="e" x1="300" y1="144" x2="528" y2="144" marker-end="url(#a5)"/>
+            <text class="mt" x="415" y="138" text-anchor="middle">/chatbot/initial-agent-message/:id</text>
+            <line class="e" x1="300" y1="176" x2="528" y2="176" marker-end="url(#a5)"/>
+            <text class="mt" x="415" y="170" text-anchor="middle">GET /faqs/:agentId</text>
+            <line class="e" x1="300" y1="208" x2="528" y2="208" marker-end="url(#a5)"/>
+            <text class="mt" x="415" y="202" text-anchor="middle">/chatbot/session</text>
+            <line class="ea" x1="300" y1="248" x2="528" y2="248" marker-end="url(#a5a)"/>
+            <text class="mt" x="415" y="242" text-anchor="middle">/chatbot/chat/:sessionId</text>
+            <line class="ed" x1="530" y1="280" x2="758" y2="280" marker-end="url(#a5)"/>
+            <text class="m" x="645" y="274" text-anchor="middle">retrieve chunks, generate</text>
+            <line class="ea" x1="530" y1="312" x2="302" y2="312" marker-end="url(#a5a)"/>
+            <text class="m" x="415" y="306" text-anchor="middle">streamed reply</text>
+            <line class="e" x1="300" y1="352" x2="528" y2="352" marker-end="url(#a5)"/>
+            <text class="mt" x="415" y="346" text-anchor="middle">/leads · /api/v1/tickets · /booking</text>
+            <line class="e" x1="530" y1="392" x2="918" y2="392" marker-end="url(#a5)"/>
+            <text class="m" x="725" y="386" text-anchor="middle">ticket, lead or call in Conversations; Slack, webhooks</text>
+          </svg>
+        </div>
+        <figcaption>All paths are relative to <code>api.botric.ai/api/v1</code> and were found in the widget bundle. The FAQ call was seen live as a GET; the other HTTP methods and the retrieval step are inferred. The widget renders inside a Shadow DOM so the host site's CSS can't break it.</figcaption>
+      </figure>
+
+      <div class="cards">
+        <div class="card"><h4>Knowledge</h4><ul><li>Website URLs, pasted text, FAQ pairs, files (PDF, DOCX, PPTX, TXT, MD), audio and video (transcribed; higher plans)</li><li>Each item is chunked, embedded and tracked through training</li><li>Sources live on the workspace; each agent picks which to read</li><li>FAQs are generated 30–60 s after training</li></ul></div>
+        <div class="card"><h4>Agent settings</h4><ul><li>Six tabs: Info &amp; Appearance, Knowledge, Channels, FAQs, Connect, Settings</li><li>Three modes: floating widget, always-open iframe, or a modal opened by the site's own button</li><li>Every colour configurable; branding removable on higher plans</li><li>Allowed-domains list; a disable switch</li></ul></div>
+        <div class="card"><h4>Channels</h4><ul><li>Ticket system, lead form (text, email, phone, number, text area), support-form intake, web search fallback, Cal.com booking, exit-intent popup</li><li>Planned: WhatsApp, Slack, Telegram</li></ul></div>
+        <div class="card"><h4>Conversations and analytics</h4><ul><li>Logs tagged Support, Knowledge Gap or Unclear; tickets (Open → Closed, with priority); leads; calls</li><li>Each answer is marked confident, tentative or unanswered</li><li>Chat is billed per 200 messages; history kept 60, 90 or 120 days by plan</li></ul></div>
+      </div>
+
+<pre><code><span class="c">// GET api.botric.ai/api/v1/faqs/:agentId (shape seen live; values removed)</span>
+{
+  "success": true, "message": "…",
+  "data": {
+    "faqs": [{
+      "_id": "…", "agentId": "…", "organizationId": "…",
+      "question": "…", "answer": "…", "isActive": true,
+      "generatedBy": "…", "confidenceScore": 0, "sourceContext": "…",
+      "__v": 0, "createdAt": "…", "updatedAt": "…"
+    }],
+    "total": 0, "limit": 0, "offset": 0, "hasMore": false
+  }
+}</code></pre>
+    </section>
+
+    <!-- 10 -->
+    <section id="billing">
+      <h2><span class="n">[10]</span>Billing and credits</h2>
+      <p class="intro">Plans set limits; credits meter anything that costs Botric compute. Both belong to the organization.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th></th><th class="num">Free</th><th class="num">Bit</th><th class="num">Byte</th><th class="num">Infinity</th></tr></thead>
+          <tbody>
+            <tr><td>Price per month (billed monthly / yearly)</td><td class="num">$0</td><td class="num">$15 / $12.50</td><td class="num">$49 / $45</td><td class="num">$149 / $136</td></tr>
+            <tr><td>Engines</td><td class="num">ChatGPT</td><td class="num">+ AI Overviews</td><td class="num">+ Perplexity</td><td class="num">+ Claude, Gemini</td></tr>
+            <tr><td>Prompts (pricing page)</td><td class="num">5</td><td class="num">15</td><td class="num">25</td><td class="num">150</td></tr>
+            <tr><td>Tracked cap per site (manual)</td><td class="num">5</td><td class="num">10</td><td class="num">20</td><td class="num">25</td></tr>
+            <tr><td>Credits per cycle</td><td class="num">800</td><td class="num">1,500</td><td class="num">5,000</td><td class="num">15,000</td></tr>
+            <tr><td>Chat agents</td><td class="num">–</td><td class="num">1</td><td class="num">1</td><td class="num">5</td></tr>
+            <tr><td>Blogs per cycle</td><td class="num">–</td><td class="num">4</td><td class="num">12</td><td class="num">40</td></tr>
+            <tr><td>Chat history</td><td class="num">–</td><td class="num">60 days</td><td class="num">90 days</td><td class="num">120 days</td></tr>
+            <tr><td>Workspaces · sites · seats</td><td class="num">1 · 1 · 1</td><td class="num">1 · 1 · 1</td><td class="num">1 · 1 · 1</td><td class="num">5 · 5 · 5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Above these sit Managed GEO ($849 a month, 3-month minimum, a team does the work) and Enterprise (custom quote, multi-brand, SSO, custom SLAs).</p>
+
+      <h3>Credit rules</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Action</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr><td>Site Audit</td><td>Per run, regardless of page count (price shown live)</td></tr>
+            <tr><td>GEO / AI Visibility</td><td>Per prompt × (full tracked cap + add-on prompts)</td></tr>
+            <tr><td>Chat agent</td><td>Per 200 messages</td></tr>
+            <tr><td>Topic discovery</td><td>20 credits a run</td></tr>
+            <tr><td>Blog generation</td><td>200 credits a blog; refunded if it fails</td></tr>
+            <tr><td>Prompt Research</td><td>20 credits a prompt, up to 10 a run</td></tr>
+            <tr><td>New workspace</td><td>Its first Site Audit + GEO run</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li><b>Two pools.</b> Plan credits reset each cycle; add-on packs never expire. Spending draws from plan credits first, so paid-for packs survive the reset.</li>
+        <li><b>Pre-flight check.</b> A run that would overdraw is blocked before it starts, with a dialog showing required, available and the shortfall broken down by component. The server enforces it too.</li>
+        <li><b>Ledger.</b> Every movement is typed (usage, refund, purchase, plan grant, plan reset, plan expiry) and records the balance before and after.</li>
+      </ul>
+
+      <h3>Subscription states</h3>
+      <figure>
+        <div class="fig">
+          <svg class="d" viewBox="0 0 1000 300" role="img" aria-label="Subscription state machine: Free can start a trial or go straight to Active through Stripe Checkout. Trial becomes Active after 7 days or early. Active can be canceled, which runs to period end then expires, or reactivated before expiry. A failed renewal moves Active to Payment due, and paying the invoice returns it to Active. From Expired the user chooses a plan again.">
+            <defs>
+              <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+            </defs>
+            <rect class="box" x="20" y="115" width="130" height="54" rx="27"/>
+            <text class="t" x="85" y="138" text-anchor="middle">Free</text>
+            <text class="s" x="85" y="156" text-anchor="middle">free limits</text>
+            <rect class="box" x="215" y="30" width="130" height="54" rx="27"/>
+            <text class="t" x="280" y="53" text-anchor="middle">Trial</text>
+            <text class="s" x="280" y="71" text-anchor="middle">full, 7 days</text>
+            <rect class="acc" x="420" y="115" width="130" height="54" rx="27"/>
+            <text class="t" x="485" y="138" text-anchor="middle">Active</text>
+            <text class="s" x="485" y="156" text-anchor="middle">full access</text>
+            <rect class="box" x="640" y="30" width="130" height="54" rx="27"/>
+            <text class="t" x="705" y="53" text-anchor="middle">Canceled</text>
+            <text class="s" x="705" y="71" text-anchor="middle">full to period end</text>
+            <rect class="box" x="640" y="200" width="130" height="54" rx="27"/>
+            <text class="t" x="705" y="223" text-anchor="middle">Payment due</text>
+            <text class="s" x="705" y="241" text-anchor="middle">paid actions blocked</text>
+            <rect class="box" x="850" y="115" width="130" height="54" rx="27"/>
+            <text class="t" x="915" y="138" text-anchor="middle">Expired</text>
+            <text class="s" x="915" y="156" text-anchor="middle">back to free limits</text>
+
+            <line class="e" x1="150" y1="125" x2="213" y2="72" marker-end="url(#a6)"/>
+            <text class="l" x="176" y="94" text-anchor="end">start trial</text>
+            <line class="e" x1="345" y1="78" x2="418" y2="125" marker-end="url(#a6)"/>
+            <text class="l" x="392" y="92">day 7, or early</text>
+            <line class="e" x1="150" y1="150" x2="418" y2="150" marker-end="url(#a6)"/>
+            <text class="l" x="284" y="143" text-anchor="middle">Stripe Checkout</text>
+            <line class="e" x1="550" y1="125" x2="638" y2="72" marker-end="url(#a6)"/>
+            <text class="l" x="585" y="92" text-anchor="end">cancel</text>
+            <line class="e" x1="660" y1="84" x2="552" y2="140" marker-end="url(#a6)"/>
+            <text class="l" x="620" y="132">reactivate</text>
+            <line class="e" x1="770" y1="70" x2="848" y2="125" marker-end="url(#a6)"/>
+            <text class="l" x="812" y="84">period ends</text>
+            <line class="e" x1="530" y1="169" x2="638" y2="215" marker-end="url(#a6)"/>
+            <text class="l" x="600" y="188">renewal fails</text>
+            <line class="e" x1="638" y1="240" x2="505" y2="171" marker-end="url(#a6)"/>
+            <text class="l" x="540" y="232" text-anchor="end">invoice paid</text>
+            <path class="e" d="M915,169 V282 H485 V171" marker-end="url(#a6)"/>
+            <text class="l" x="700" y="274" text-anchor="middle">choose a plan again</text>
+          </svg>
+        </div>
+        <figcaption>A trial needs a card and can be used once per organization. Payment due and Expired block new runs, content generation and workspace creation, but existing reports stay readable. Upgrades show a proration preview before charging.</figcaption>
+      </figure>
+    </section>
+
+    <!-- 11 -->
+    <section id="api">
+      <h2><span class="n">[11]</span>API surface</h2>
+      <h3>Paths seen in page code and network calls</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Path under api.botric.ai/api/v1</th><th>Called by</th><th>Does</th></tr></thead>
+          <tbody>
+            <tr><td class="ph">/geo-visibility/geo-audit</td><td>www</td><td>Free public audit</td></tr>
+            <tr><td class="ph">/support-forms</td><td>www</td><td>Contact form</td></tr>
+            <tr><td class="ph">/sse</td><td>app</td><td>Live run progress and status</td></tr>
+            <tr><td class="ph">/chatbot/:botId</td><td>widget</td><td>Agent config: theme, mode, channels</td></tr>
+            <tr><td class="ph">/chatbot/initial-agent-message/:id</td><td>widget</td><td>Opening message</td></tr>
+            <tr><td class="ph">/chatbot/session</td><td>widget</td><td>Start a visitor session</td></tr>
+            <tr><td class="ph">…/:sessionId/messages</td><td>widget</td><td>Session history</td></tr>
+            <tr><td class="ph">/chatbot/chat/:sessionId</td><td>widget</td><td>Send a question, stream the answer</td></tr>
+            <tr><td class="ph">/chatbot/sources/:id</td><td>widget</td><td>Sources behind an answer</td></tr>
+            <tr><td class="ph">/faqs/:agentId</td><td>widget</td><td>Suggested questions, paginated</td></tr>
+            <tr><td class="ph">/leads · /booking · /tickets</td><td>widget</td><td>Channel submissions</td></tr>
+            <tr><td class="ph">/integrations · /integrations/cal</td><td>widget</td><td>Enabled integrations, Cal.com booking</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>App routes I'd expect behind the dashboard <span class="chip inf">Inferred</span></h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Module</th><th>Routes</th></tr></thead>
+          <tbody>
+            <tr><td><b>Account</b></td><td class="mono">/org, /members, /members/invite, /workspaces</td></tr>
+            <tr><td><b>Site</b></td><td class="mono">/sites/:id/profile, /profile/sync, /competitors, /competitors/regenerate</td></tr>
+            <tr><td><b>Prompts</b></td><td class="mono">/sites/:id/prompts, /prompt-research/runs</td></tr>
+            <tr><td><b>Runs</b></td><td class="mono">/sites/:id/runs {agent: geo|siteAudit|geoAudit}, /runs/:id, /runs/:id/compare/:otherId</td></tr>
+            <tr><td><b>Insights</b></td><td class="mono">/runs/:id/prompts, /gaps, /recommendations, /citations, /competitors, /perception</td></tr>
+            <tr><td><b>Content</b></td><td class="mono">/brain/build, /topics/discover, /blogs, /blogs/:id/export, /page-fixes</td></tr>
+            <tr><td><b>Support</b></td><td class="mono">/knowledge, /knowledge/:id/retrain, /chatbots, /chatbots/:id/faqs/regenerate, /conversations</td></tr>
+            <tr><td><b>Data</b></td><td class="mono">/integrations/google/connect, /analytics/ai-traffic, /reports/monthly</td></tr>
+            <tr><td><b>Billing</b></td><td class="mono">/billing/checkout, /billing/proration-preview, /credits, /credits/packs, /invoices, /webhooks/stripe</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section id="ops">
+      <h2><span class="n">[12]</span>Scale, security and operations</h2>
+      <div class="cards">
+        <div class="card"><h4>Load</h4><p>An Infinity customer (by the pricing page) is 150 prompts × 5 engines = 750 captured answers per site per week, and up to 3,750 across 5 sites. Each answer then gets several LLM passes (names, citations, tone). Answer capture is the scaling bottleneck and the main cost.</p></div>
+        <div class="card"><h4>Async by default</h4><p>Runs, audits, Brain builds and blog generation are all background jobs. Users can leave the page; progress arrives over SSE and sidebar badges update when a job finishes.</p></div>
+        <div class="card"><h4>Tenancy</h4><p>The organization is the billing and access boundary. Workspace ids sit in every app URL. Members see all workspaces; roles only gate rename, delete and billing.</p></div>
+        <div class="card"><h4>Widget safety</h4><p>A public key (<code>bt-live-…</code>, which suggests live and test keys), an allowed-domains list per agent, and Shadow DOM isolation. The iframe route is public by design.</p></div>
+        <div class="card"><h4>Google data</h4><p>GA4 and Search Console are connected by OAuth with read-only scopes under Google's Limited Use policy (privacy policy, section 7).</p></div>
+        <div class="card"><h4>Retention</h4><p>Chat history is kept 60, 90 or 120 days by plan. A TTL index or a nightly purge job would enforce it <span class="chip inf">Inferred</span>.</p></div>
+      </div>
+    </section>
+
+    <!-- 13 -->
+    <section id="gaps">
+      <h2><span class="n">[13]</span>What doesn't add up</h2>
+      <p class="intro">Places where Botric's marketing, docs and product disagree. Worth knowing before you copy any of it, and worth avoiding in your own build.</p>
+      <ul class="issues">
+        <li><b>Prompt limits</b><span>The pricing page promises 15 / 25 / 150 prompts on Bit / Byte / Infinity. The manual says the tracked caps are 10 / 20 / 25 per site, plus a fixed number of add-on slots.</span></li>
+        <li><b>Score formula</b><span>The FAQ and llms.txt say mention 40, citation 25, position 20, sentiment 15. The brand-mentions tracker page lists mentions, citations, content coverage and sentiment instead.</span></li>
+        <li><b>Engine count</b><span>The homepage says 4 assistants, the trackers say 6 engines, the manual lists 11 platforms, and the tracker FAQ calls Grok and DeepSeek "on the roadmap" while the manual lists them.</span></li>
+        <li><b>Blogs on Infinity</b><span>The plan card says 40 blogs; the note under the comparison table says 15.</span></li>
+        <li><b>Blog scoring</b><span>Marketing describes 12 rankability dimensions and a 15-point GEO checklist; the manual documents 4 scores.</span></li>
+        <li><b>GEO billing</b><span>A run bills the full tracked cap plus add-ons regardless of visible prompts. The manual itself calls it "the one that surprises people".</span></li>
+        <li><b>GEO course</b><span>The hub promises 18 modules; 8 are live, and module 9 returns 404.</span></li>
+      </ul>
+    </section>
+
+    <!-- 14 -->
+    <section id="plan">
+      <h2><span class="n">[14]</span>Build plan</h2>
+      <p class="intro">How to build a system like this yourself in 12 weeks, keeping Botric's stack where it's sound and changing it where it's risky.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Layer</th><th>Use</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><b>Marketing</b></td><td>Next.js + MDX in Git on Vercel</td><td>Same as Botric: server-rendered, citable, cheap</td></tr>
+            <tr><td><b>App</b></td><td>Next.js + Clerk (or Supabase Auth)</td><td>Passwordless and Google sign-in out of the box</td></tr>
+            <tr><td><b>API</b></td><td>Node + Express + Mongoose on MongoDB Atlas</td><td>Matches Botric, and Atlas Vector Search keeps embeddings in the same database</td></tr>
+            <tr><td><b>Jobs</b></td><td>BullMQ on Redis, workers on Railway or Render</td><td>Runs are long, staged and retryable</td></tr>
+            <tr><td><b>Engines</b></td><td>Official APIs with search (OpenAI, Perplexity Sonar, Gemini grounding, Claude web search) before any UI capture</td><td>Botric's "native" capture risks breaking terms of service and breaks often</td></tr>
+            <tr><td><b>Billing</b></td><td>Razorpay for INR, Stripe for USD, one credit ledger</td><td>You already run Razorpay in Travo</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th class="num">Week</th><th>Build</th><th>Done when</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td>Marketing site: templates, MDX blog, JSON-LD components, robots.txt, llms.txt, sitemaps, audit CTA</td><td>The site passes its own audit checklist</td></tr>
+            <tr><td class="num">2</td><td>API skeleton, auth, organizations, workspaces, sites; onboarding that reads a URL and drafts the brand profile</td><td>Sign up and create a workspace</td></tr>
+            <tr><td class="num">3</td><td>Site Audit crawler and GEO Audit checks; the free public audit endpoint and report page</td><td>Paste a URL, get a report</td></tr>
+            <tr><td class="num">4–5</td><td>GEO pipeline: intents, prompts, 2 engine adapters, extraction, four outcomes, score, reports, SSE progress</td><td>First score with a trend over two runs</td></tr>
+            <tr><td class="num">6</td><td>Citations, competitors (benchmark, heatmap, gap matrix), content gaps, recommendations, actions</td><td>Every gap has a next step</td></tr>
+            <tr><td class="num">7</td><td>Credit ledger with pre-flight and refunds, plans, entitlements, subscriptions</td><td>A run is blocked when credits are short</td></tr>
+            <tr><td class="num">8</td><td>Knowledge sources, embeddings, chat agent, Shadow DOM widget with streaming</td><td>Widget answers from your docs on Travo</td></tr>
+            <tr><td class="num">9</td><td>Channels (leads, tickets, bookings), Conversations inbox, answer-confidence analytics</td><td>A lead arrives from the widget</td></tr>
+            <tr><td class="num">10</td><td>Content Brain, topic discovery, Blog Agent with 4 scores and export, Page Agent</td><td>A draft for a real gap</td></tr>
+            <tr><td class="num">11</td><td>GA4 and Search Console OAuth, AI-traffic analytics, monthly PDF report</td><td>AI referrals shown per platform</td></tr>
+            <tr><td class="num">12</td><td>Two more engine adapters, rate limits, retention purge, roles, a docs site</td><td>Four engines and a clean audit trail</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Copy this, avoid that</h3>
+      <div class="cards">
+        <div class="card"><h4>Worth copying</h4><ul><li>Credit ledger with pre-flight blocking and automatic refunds</li><li>The four-outcome vocabulary for every prompt</li><li>Per-engine scores next to the overall score</li><li>Prompt Research before a prompt takes a tracked slot</li><li>Running your own product on your own marketing site</li></ul></div>
+        <div class="card"><h4>Do differently</h4><ul><li>Bill only for the prompts actually run</li><li>One source of truth for plan limits, used by the pricing page and the app</li><li>Official APIs first; label results "via API"</li><li>Don't promise course modules or engines that aren't live</li></ul></div>
+      </div>
+      <p>For a smaller 8-week version with pricing in rupees and a profit calculator, see the earlier <a href="/blueprint">Citewise build blueprint</a>.</p>
+    </section>
+
+    <footer>
+      Sources: all 73 URLs in botric.ai's sitemaps (pages, blog, legal), plus /geo-optimizer and /careers; manual.botric.ai (36 pages via llms-full.txt); robots.txt, llms.txt and the /ai files; scripts, network calls and public JavaScript bundles on www, app and widget subdomains; the privacy policy. Read on 30 September 2026. No forms were submitted and no account was created. Independent analysis; not affiliated with Botric.
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting && byId[e.target.id]) {
+        links.forEach(function (l) { l.classList.remove('on'); });
+        byId[e.target.id].classList.add('on');
+      }
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { obs.observe(s); });
+})();
+</script>
+
+</body>
+</html>
